@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 import json
 import collections
 import logging
+import time
 
 
 
@@ -18,6 +19,7 @@ stdlogger = logging.getLogger(__name__)
 # sideeffects: none
 def json_getUserUpdate(JSONInFile, tagArray, numData):
 	JSONOutFile = []
+	t0 = time.time()
 	JSONInFile = json.loads(JSONInFile)
 	for instance in JSONInFile:
 		json_dic = collections.OrderedDict()
@@ -33,13 +35,12 @@ def json_getUserUpdate(JSONInFile, tagArray, numData):
 		json_dic['private'] = instance['fields']['private']
 		JSONOutFile.append(json_dic)
 
-	for i in range(0,numData):
-		# construct the tag array of tag strings
-		tags = []
-		for element in tagArray[i]:
-			tags.append(element.tags)
-		# insert into our json file
-		JSONOutFile[i]['tags'] = tags
+	for instance in JSONOutFile:
+		instance['tag'] = []
+		for each_tag in tagArray:
+			if instance['qID'] == each_tag[1]:
+				instance['tag'].append(each_tag[0])
+	
 
 	JSONOutDict = {}
 	JSONOutDict['contents'] = JSONOutFile 
