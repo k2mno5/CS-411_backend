@@ -30,6 +30,24 @@ def updateVoteStatus(postID, postType, userID, voteStatus):
 	else:
 		data = StackQuora.Answers.objects.filter(aid = postID)
 
-	
+	if not data:
+		raise Exception("Something is wrong, postID not found, unable to update.")
 
-	return HttpResponse("{}, {}, {}, {}".format(postID, postType, userID, voteStatus))
+	if voteStatus == 0:
+		data.downvote += 1
+	elif voteStatus == 1:
+		data.upvote +=1
+	else:
+		data.downvote = 0
+		data.upvote = 0
+	data.save(['downvote', 'upvote'])
+	return HttpResponse()
+
+# getUserUpdate
+# input: post ID, 
+#        post Type (0: question, 1: answers), 
+#        userID, 
+#        voteStatus (0: down vote, 1: reset, 2: upvote)
+# output: empty http response
+# sample url: localhost/utilities/post/vote/999/0/9999/1/
+
