@@ -11,24 +11,9 @@ import logging
 # Logger in view module
 stdlogger = logging.getLogger(__name__)
 
-# testing functions uncomment to test
-def index(request):
-    stdlogger.info("Entering index method")
-    return HttpResponse("index method in views")
-
-def showUID(request, userID):
-    time_s = time.time()
-    data = Questions.objects.all()
-    res = data[len(data)-1]
-    time_e = time.time()
-    return HttpResponse("{}\n {} \n{}".format((time_e-time_s),res, userID))
-
-def showQID(request):
-    return management.data_process_showQID(request)
-
 # ================= Functions and APIs ====================
 
-# updateVoteStatus
+# updateVoteStatus wrapper
 # input: Http get_request
 # output: empty http response
 def updateVoteStatus(request, postID, postType, userID, voteStatus):
@@ -37,3 +22,13 @@ def updateVoteStatus(request, postID, postType, userID, voteStatus):
     userID = int(userID)
     voteStatus = int(voteStatus)
     return management.updateVoteStatus(postID, postType, userID, voteStatus)
+
+# getUserUpdate wrapper
+# input uID, Http_get_request
+# output: JSON file, schema on github issue
+# @NOTE, in this version, 10 random questions will be return
+#        to return preference related questions, change the
+#        getUserUpdate_random to getUserUpdate, which will be
+#        implemented later on.
+def getUserUpdate_random(request):
+    return management.getUserUpdate_random()
