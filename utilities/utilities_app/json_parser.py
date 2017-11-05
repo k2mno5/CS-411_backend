@@ -41,8 +41,8 @@ def json_getUserUpdate(JSONInFile, tagArray, numData):
 		# insert into our json file
 		JSONOutFile[i]['tags'] = tags
 
-	stdlogger.info(JSONOutFile)
-	
-	return json.dumps(JSONOutFile)
+	JSONOutDict = {}
+	JSONOutDict['contents'] = JSONOutFile 
+	return json.dumps(JSONOutDict)
 
 	
