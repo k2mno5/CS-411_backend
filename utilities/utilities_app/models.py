@@ -10,6 +10,17 @@ from __future__ import unicode_literals
 from django.db import models
 
 
+class Activityhistory(models.Model):
+    uid = models.IntegerField(db_column='uID', primary_key=True)  # Field name made lowercase.
+    actionid = models.BigIntegerField(db_column='actionID')  # Field name made lowercase.
+    actiontype = models.IntegerField(db_column='actionType')  # Field name made lowercase.
+    time = models.DateTimeField()
+
+    class Meta:
+        db_table = 'ActivityHistory'
+        unique_together = (('uid', 'actionid', 'actiontype'),)
+
+
 class Answers(models.Model):
     aid = models.BigIntegerField(db_column='aID', primary_key=True)  # Field name made lowercase.
     owneruserid = models.IntegerField(db_column='ownerUserID', blank=True, null=True)  # Field name made lowercase.
@@ -23,6 +34,15 @@ class Answers(models.Model):
 
     class Meta:
         db_table = 'Answers'
+
+
+class Following(models.Model):
+    uid = models.IntegerField(db_column='uID', primary_key=True)  # Field name made lowercase.
+    uidfollowing = models.IntegerField(db_column='uIDFollowing')  # Field name made lowercase.
+
+    class Meta:
+        db_table = 'Following'
+        unique_together = (('uid', 'uidfollowing'),)
 
 
 class Questions(models.Model):
@@ -42,12 +62,24 @@ class Questions(models.Model):
 
 
 class Tags(models.Model):
-    id = models.BigAutoField(db_column='ID', primary_key=True)  # Field name made lowercase.
-    tid = models.BigIntegerField(db_column='tID', blank=True, null=True)  # Field name made lowercase.
-    tags = models.TextField()
+    tid = models.BigIntegerField(db_column='tID', primary_key=True)  # Field name made lowercase.
+    tags = models.CharField(max_length=64)
 
     class Meta:
         db_table = 'Tags'
+        unique_together = (('tid', 'tags'),)
+
+
+class Users(models.Model):
+    uid = models.AutoField(db_column='uID', primary_key=True)  # Field name made lowercase.
+    username = models.CharField(db_column='userName', max_length=16, blank=True, null=True)  # Field name made lowercase.
+    following = models.IntegerField()
+    follower = models.IntegerField()
+    reputation = models.IntegerField()
+    lastlogin = models.DateTimeField(db_column='lastLogin')  # Field name made lowercase.
+
+    class Meta:
+        db_table = 'Users'
 
 
 class AuthGroup(models.Model):

@@ -7,9 +7,14 @@ from . import management
 import time
 import logging
 
-
-# Logger in view module
+# Logger in view module see README to use the logger print here will not work
 stdlogger = logging.getLogger(__name__)
+
+
+# Default view
+def index(request):
+    return HttpResponse("If you see this page, Apache httpd and django is running.")
+
 
 # ================= Functions and APIs ====================
 
@@ -32,3 +37,10 @@ def updateVoteStatus(request, postID, postType, userID, voteStatus):
 #        implemented later on.
 def getUserUpdate_random(request):
     return management.getUserUpdate_random()
+
+# display question answers
+# input ID, possibly UID or AID, 
+#		ques, specify whether a question an all of its answers will return
+# output json file specified online
+def displayQuestionAnswers(request, qaID, is_ques):
+	return management.displayQuestionAnswers(int(qaID), int(is_ques))

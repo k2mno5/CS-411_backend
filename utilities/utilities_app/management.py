@@ -14,6 +14,7 @@ from django.core.exceptions import ObjectDoesNotExist
 # date processing dependency
 from django.core import serializers
 from . import json_parser
+from django.http import JsonResponse
 
 # logger for management module
 stdlogger = logging.getLogger(__name__)
@@ -29,7 +30,6 @@ stdlogger = logging.getLogger(__name__)
 # side-effect: updating table
 # sample url: localhost/utilities/post/vote/999/0/9999/1/
 def updateVoteStatus(postID, postType, userID, voteStatus):
-	time_s = time.time()
 	try:
 		if postType == 0:
 			data = StackQuora.Questions.objects.get(qid = postID)
@@ -53,8 +53,7 @@ def updateVoteStatus(postID, postType, userID, voteStatus):
 
 	# update recommandation system
 
-	time_e = time.time()
-	return HttpResponse("{}".format(time_e - time_s))
+	return HttpResponse("Success!")
 
 # getUserUpdate
 # input: uID
@@ -62,8 +61,6 @@ def updateVoteStatus(postID, postType, userID, voteStatus):
 # side-effect: none
 # description: first stage will only randomly return ten questions
 #  			    will return actual questions that is related later on.
-
-
 def getUserUpdate_random():
 	random_data_questions = StackQuora.Questions
 	random_data = []
@@ -84,9 +81,76 @@ def getUserUpdate_random():
 	# get data from Tags table for each question retrived, one time evaluation
 	for e in random_tags.objects.filter(tid__in = question_ID):
 		tag_array.append((e.tags, e.tid))
- 	stdlogger.info(tag_array)
 
  	# formatting json object	
  	data_json = serializers.serialize('json', random_data)
  	data_json = json_parser.json_getUserUpdate(data_json, tag_array, len(tag_array))
-	return HttpResponse(data_json, content_type = "appn/json")
+	return JsonResponse(data_json)
+
+
+# display question answers
+# input ID, possibly UID or AID, 
+#		ques, specify whether a question an all of its answers will return
+# output json file specified online
+# lets try 38817270 as qid first
+# owner id 4576857
+# creation date "2016-08-07T18:32:13Z"
+# closed date NULL
+# title "Java Application to Access PC wifi direct OR Java - Wifi API",
+''' tags     "android",
+    "java",
+    "wifi-direct",
+    "wifip2p"
+'''
+def displayQuestionAnswers(qaID, is_ques):
+	data_json = {}
+	questionAuther = ()
+	aAuthorID = []
+	answerAuthors = []
+	if is_ques != 0:
+		# try to get questions specified by qaID
+		try:
+			req_question = StackQuora.Questions.objects.get(qid = qaID)
+		except ObjectDoesNotExist:
+			return HttpResponse("qID no longer exist in the database")
+
+		# try to get corresponding answers may be empty
+		req_answers = StackQuora.Answers.objects.filter(parentid = req_question.qid)
+		
+		# try to get three tags
+		tags = StackQuora.Tags.objects.filter(tid = req_question.qid)
+		tag_array = []
+		i = 0
+		for instance in tags:
+			tag_array.append(instance.tags)
+			i+=1
+			if i == 3:
+				break
+
+		# try to get corresonding question owner
+		questionAuthor = StackQuora.Users.objects.get(uid = req_question.owneruserid)
+		questionAuthor = (questionAuthor.username, questionAuthor.reputation)
+
+		# try to get corresponding answer owner if there is any answser
+		# with ingle database evaluation
+		for instance in req_answers:
+			aAuthorID.append(instance.owneruserid)
+		answerAuthors_object = StackQuora.Users.objects.filter(uid__in = aAuthorID)
+		for instance in req_answers:
+			for user in answerAuthors_object:
+				if user.uid == instance.owneruserid:
+					answerAuthors.append((user.username,user.reputation))
+
+		data_json =  json_parser.json_displayQuestionAnswers(req_question, 
+			req_answers,tag_array, questionAuthor, answerAuthors)
+
+	else:
+		try:
+			req_answer = StackQuora.Answers.objects.get(aid  = qaID)
+		except ObjectDoesNotExist:
+			return HttpResponse("aID no longer exist in the database")
+		answerAuthor = StackQuora.Users.objects.get(uid = req_answer.owneruserid)
+		answerAuthors.append((answerAuthor.username,answerAuthor.reputation))
+		data_json = json_parser.json_displayQuestionAnswers(None, 
+			[req_answer], [], ("",0), answerAuthors)
+	return JsonResponse(data_json)

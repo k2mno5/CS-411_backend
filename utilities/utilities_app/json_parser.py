@@ -36,14 +36,59 @@ def json_getUserUpdate(JSONInFile, tagArray, numData):
 		JSONOutFile.append(json_dic)
 
 	for instance in JSONOutFile:
-		instance['tag'] = []
+		instance['tags'] = []
 		for each_tag in tagArray:
 			if instance['qID'] == each_tag[1]:
-				instance['tag'].append(each_tag[0])
+				instance['tags'].append(each_tag[0])
 	
 
 	JSONOutDict = {}
 	JSONOutDict['contents'] = JSONOutFile 
-	return json.dumps(JSONOutDict)
-
+	# return json.dumps(JSONOutDict)
+	return JSONOutDict
 	
+
+# json parser for displayQuestionAnswers function in management.py
+# input dataframe file: req_question, req_answers
+# output parsed json file according to spec
+def json_displayQuestionAnswers(req_question, req_answers, tagArray, questionAuthor, answerAuthors):
+	JSONOutDict = {}
+	if req_question is not None:
+		questionDict = collections.OrderedDict()
+		questionDict['qid']  =req_question.qid
+		questionDict['authorName'] = questionAuthor[0]
+		questionDict['reputation'] = questionAuthor[1]
+		questionDict['title'] = req_question.title
+		questionDict['body'] = req_question.body
+		questionDict['upvote'] = req_question.upvote
+		questionDict['downvote']  =req_question.downvote
+		# number of comment omit for now
+		# vote status omit for now
+		questionDict['posted_time'] = req_question.creationdate
+		questionDict['closed_time'] = req_question.closeddate
+		questionDict['tags'] = tagArray
+		# following omit for now but will add in later or rather it is not a good idea
+		# to place if a user is following an author in this json file.
+		JSONOutDict['question'] = questionDict
+
+	stdlogger.info(answerAuthors)
+	stdlogger.info(req_answers)
+
+	if req_answers:
+		answers = []
+		i = 0
+		for instance in req_answers:
+			answerDict = collections.OrderedDict()
+			answerDict['aid'] = instance.aid
+			answerDict['authorName'] = answerAuthors[i][0]
+			answerDict['reputation'] = answerAuthors[i][1]
+			answerDict['body'] = instance.body
+			answerDict['upvote'] = instance.upvote
+			answerDict['downvote'] = instance.downvote
+			# vote status omit for now, since we have update vote
+			answerDict['creationdate'] = instance.creationdate
+			# for the same reason, omit following
+			i+=1
+			answers.append(answerDict)
+		JSONOutDict['answers'] = answers
+	return JSONOutDict
