@@ -7,4 +7,6 @@ urlpatterns = [
     url(r'^userUpdateRandom/$', views.getUserUpdate_random),
     url(r'^displayQuestionAnswers/(?P<qaID>[0-9]+)/(?P<is_ques>[0-1]{1})/$', 
     	views.displayQuestionAnswers),
+    url(r'^post/postAnswer/$',views.postAnswer),
+    url(r'^post/deletePost/(?P<ID>[0-9]+)/(?P<is_ques>[0-9]+)/$',views.deletePost),
 ]

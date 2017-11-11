@@ -30,8 +30,8 @@ def json_getUserUpdate(JSONInFile, tagArray, numData):
 		json_dic['title'] = instance['fields']['title']
 		json_dic['body'] = instance['fields']['body']
 		json_dic['score'] = instance['fields']['score']
-		json_dic['upvote'] = instance['fields']['upvote']
-		json_dic['downvote'] = instance['fields']['downvote']
+		json_dic['upvotes'] = instance['fields']['upvote']
+		json_dic['downvotes'] = instance['fields']['downvote']
 		json_dic['private'] = instance['fields']['private']
 		JSONOutFile.append(json_dic)
 
@@ -57,11 +57,12 @@ def json_displayQuestionAnswers(req_question, req_answers, tagArray, questionAut
 		questionDict = collections.OrderedDict()
 		questionDict['qid']  =req_question.qid
 		questionDict['authorName'] = questionAuthor[0]
+		questionDict['authorID'] = questionAuthor[2]
 		questionDict['reputation'] = questionAuthor[1]
 		questionDict['title'] = req_question.title
 		questionDict['body'] = req_question.body
-		questionDict['upvote'] = req_question.upvote
-		questionDict['downvote']  =req_question.downvote
+		questionDict['upvotes'] = req_question.upvote
+		questionDict['downvotes']  =req_question.downvote
 		# number of comment omit for now
 		# vote status omit for now
 		questionDict['posted_time'] = req_question.creationdate
@@ -82,9 +83,10 @@ def json_displayQuestionAnswers(req_question, req_answers, tagArray, questionAut
 			answerDict['aid'] = instance.aid
 			answerDict['authorName'] = answerAuthors[i][0]
 			answerDict['reputation'] = answerAuthors[i][1]
+			answerDict['authorID'] = answerAuthors[i][2]
 			answerDict['body'] = instance.body
-			answerDict['upvote'] = instance.upvote
-			answerDict['downvote'] = instance.downvote
+			answerDict['upvotes'] = instance.upvote
+			answerDict['downvotes'] = instance.downvote
 			# vote status omit for now, since we have update vote
 			answerDict['creationdate'] = instance.creationdate
 			# for the same reason, omit following

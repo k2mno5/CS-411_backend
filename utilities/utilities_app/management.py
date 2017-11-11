@@ -15,6 +15,9 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core import serializers
 from . import json_parser
 from django.http import JsonResponse
+import time
+import datetime
+import json
 
 # logger for management module
 stdlogger = logging.getLogger(__name__)
@@ -129,7 +132,7 @@ def displayQuestionAnswers(qaID, is_ques):
 
 		# try to get corresonding question owner
 		questionAuthor = StackQuora.Users.objects.get(uid = req_question.owneruserid)
-		questionAuthor = (questionAuthor.username, questionAuthor.reputation)
+		questionAuthor = (questionAuthor.username, questionAuthor.reputation, questionAuthor.uid)
 
 		# try to get corresponding answer owner if there is any answser
 		# with ingle database evaluation
@@ -139,7 +142,7 @@ def displayQuestionAnswers(qaID, is_ques):
 		for instance in req_answers:
 			for user in answerAuthors_object:
 				if user.uid == instance.owneruserid:
-					answerAuthors.append((user.username,user.reputation))
+					answerAuthors.append((user.username,user.reputation,user.uid))
 
 		data_json =  json_parser.json_displayQuestionAnswers(req_question, 
 			req_answers,tag_array, questionAuthor, answerAuthors)
@@ -150,7 +153,93 @@ def displayQuestionAnswers(qaID, is_ques):
 		except ObjectDoesNotExist:
 			return HttpResponse("aID no longer exist in the database")
 		answerAuthor = StackQuora.Users.objects.get(uid = req_answer.owneruserid)
-		answerAuthors.append((answerAuthor.username,answerAuthor.reputation))
+		answerAuthors.append((answerAuthor.username,answerAuthor.reputation, answerAuthor.uid))
 		data_json = json_parser.json_displayQuestionAnswers(None, 
 			[req_answer], [], ("",0), answerAuthors)
 	return JsonResponse(data_json)
+
+
+# delete a post, could either be an answer or a question
+# input: ID, qid or aid, is_ques specify whether this is 
+#	an answer or not
+# side effect: delete corresponding database entry
+def deletePost(ID, is_ques):
+	# if deleting a question, all other things has to be deleted
+	if is_ques:
+		stdlogger.info("is question")
+		has_answer = True
+		has_tag = True
+		try:
+			question = StackQuora.Questions.objects.get(qid = ID)
+		except ObjectDoesNotExist:
+			return HttpResponse("qID no longer exist in the database.")
+		
+		try:
+			answers = StackQuora.Answers.objects.filter(parentid = question.qid)
+		except ObjectDoesNotExist:
+			has_answer = False
+		
+		try:
+			tags = StackQuora.Tags.objects.filter(tid = question.qid)
+		except ObjectDoesNotExist:
+			has_tag = False
+
+		if has_answer:
+			answers.delete()
+
+		if has_tag:
+			tags.delete()
+
+		question.delete()
+
+	# else if we are deleting answer
+	else:
+		stdlogger.info("is answer only")
+		try:
+			answer = StackQuora.Answers.objects.get(aid = ID)
+		except ObjectDoesNotExist:
+			return HttpResponse("aID no longer exist in the database.") 
+		answer.delete()
+	return HttpResponse("Successfully deleted!")
+
+
+# post Answer, used to post answer to a question
+# input http post request body
+# side effect insert answer into the database
+def postAnswer(body):
+	inJson = json.loads(body)
+	answer_content = inJson['content']
+
+	try:
+		StackQuora.Users.objects.get(uid = int(answer_content['userID']))
+	except ObjectDoesNotExist:
+		return HttpResponse("No corresponding user exists: {}".format(int(answer_content['userID'])))
+	
+	try:
+		StackQuora.Questions.objects.get(qid = int(answer_content['parentID']))
+	except ObjectDoesNotExist:
+		return HttpResponse("No corresponding question exists.")
+
+	max_ = StackQuora.Answers.objects.aggregate(Max('aid'))['aid__max']
+	aID = max_ + 1
+	owneruserID = int(answer_content['userID'])
+	body = (answer_content['body'])
+	parentID = int(answer_content['parentID'])
+	score = 0
+	upVote = 0
+	downVote = 0
+	private = 0
+	creationDate = datetime.datetime.utcnow()
+
+	try:
+		new_answer = StackQuora.Answers.objects.create(aid = aID, 
+			owneruserid = owneruserID, body = body, parentid = parentID
+			, score = score, upvote = upVote, downvote = downVote, 
+			private = private, creationdate = creationDate)
+	except IntegrityError:
+		return HttpResponse("IntegrityError occured, check your pkey.")
+
+	return HttpResponse("Answer added.")
+
+
+

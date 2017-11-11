@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 from django.http import HttpResponse
+from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render
 from models import Questions
 from . import management
 import time
 import logging
+
 
 # Logger in view module see README to use the logger print here will not work
 stdlogger = logging.getLogger(__name__)
@@ -44,3 +46,16 @@ def getUserUpdate_random(request):
 # output json file specified online
 def displayQuestionAnswers(request, qaID, is_ques):
 	return management.displayQuestionAnswers(int(qaID), int(is_ques))
+
+
+# post answer, add an answer to the question
+# input request containing the json file of hte answer
+# output ack
+# side-effect: answer piped into the database
+@csrf_exempt
+def postAnswer(request):
+    return management.postAnswer(request.body)
+
+# delete a post, could be a question or an answer
+def deletePost(request, ID, is_ques):
+    return management.deletePost(int(ID), int(is_ques))
