@@ -10,6 +10,8 @@ import time
 import logging
 from django.http import JsonResponse
 import json
+from django.core import serializers
+
 
 
 # Logger in view module see README to use the logger print here will not work
@@ -45,10 +47,10 @@ def getUserUpdate_random(request):
 
 # display question answers
 # input ID, possibly UID or AID, 
-#		ques, specify whether a question an all of its answers will return
+#       ques, specify whether a question an all of its answers will return
 # output json file specified online
 def displayQuestionAnswers(request, qaID, is_ques):
-	return management.displayQuestionAnswers(int(qaID), int(is_ques))
+    return management.displayQuestionAnswers(int(qaID), int(is_ques))
 
 
 # post answer, add an answer to the question
@@ -58,6 +60,10 @@ def displayQuestionAnswers(request, qaID, is_ques):
 @csrf_exempt
 def postAnswer(request):
     return management.postAnswer(request.body)
+
+@csrf_exempt
+def postQuestion(request):
+    return management.postQuestion(request.body)
 
 # delete a post, could be a question or an answer
 def deletePost(request, ID, is_ques):
@@ -137,3 +143,78 @@ def getVoteStatus(request):
     for status in aRes:
         res_dict['answer_voted_status'].append(status)
     return JsonResponse(res_dict)
+
+def getFollowingActivities(request, userID, page):
+    uID = -1
+    pageOffset = -1
+    try:
+        uID = int(userID)
+        pageOffset = int(page)
+    except:
+        return HttpResponseBadRequest('Field type does not match')
+
+    if pageOffset < 0:
+        return HttpResponseBadRequest('Invalid page offset')
+
+    res = management.getFollowingActivities(uID, pageOffset)
+
+    if res is None:
+        return HttpResponseBadRequest('Invalid User ID')
+    else:
+        res['page'] = pageOffset
+        return JsonResponse(res)
+
+def getUserStatus(request, userID, showActivities):
+    uID = -1
+    showAct = True
+    try:
+        uID = int(userID)
+        if int(showActivities) == 0:
+            showAct = False
+    except:
+        return HttpResponseBadRequest('Field type does not match')
+
+    res = management.getUserStatus(userID, showAct)
+
+    if res is None:
+        return HttpResponseBadRequest('Invalid User ID')
+    else:
+        return JsonResponse(res)
+
+def getFollows(request, requestType, userID, page, showDetail):
+    try:
+        uID = int(userID)
+        pageOffset = int(page)
+        returnDetail = True
+        if showDetail == "0":
+            returnDetail = False
+
+        res = management.getFollows(uID, pageOffset, (requestType == "followings"), returnDetail)
+        res['page'] = pageOffset
+        return JsonResponse(res)
+    except:
+        # this should never happend since regex makes sure that parameters can be parsed to corresponding type
+        return HttpResponseBadRequest('Field type does not match')
+
+
+def getCertainActivities(request, userID, postType, actionType, page):
+    try:
+        uID = int(userID)
+        post = int(postType)
+        action = int(actionType)
+        pageOffset = int(page)
+        res = management.getCertainActivities(uID, post, action, pageOffset)
+        res['page'] = pageOffset
+        return JsonResponse(res)
+
+    except:
+        return HttpResponseBadRequest('Field type does not match')
+
+# update followers function, expecting a JSON input
+@csrf_exempt
+def updateFollowers(request):
+    return management.updateFollowers(request.body)
+
+@csrf_exempt
+def updateUserInfo(request):
+    return management.updateUserInfo(request.body)
