@@ -106,7 +106,16 @@ def getVoteStatus(uID, qIDs, aIDs):
 
     return qRes, aRes
 
-
+# getUserActivities
+# params: uIDs, a list of user IDs to get activities from
+#         numOfPost, int of the number of post (activities) to be shown
+#         pageOffset, int of page offset for skipping first (pageOffset * numOfPost) posts
+#         showActionType, int of a 3-bit indicator (0b111, 1st: show downvote; 2nd: shown upvote; 3rd: show post)
+#         showPostType, int of a 2-bit indicator (0b11, 1st: show answers; 2nd: show questions)
+# return: an activities dict
+#             keys: 'uIDs', a list of uIDs for activity initiator of activities in corresponding index
+#                   'recentActivities', a list of activity dict for each activity
+#                       keys: 'postID', 'postType', 'actionType', 'time'
 def getUserActivities(uIDs, numOfPost=10, pageOffset=0, showActionType=7, showPostType = 3):
     # POST_MASK = 1; UPVOTE_MASK = 2; DOWNVOTE_MASK = 4
     typeMask = [1, 2, 4]
@@ -152,6 +161,15 @@ def getUserStatus(uID, showActivities):
         userActivities = getUserActivities([uID])
         res["recentActivities"] = userActivities["recentActivities"]
 
+        # get post detail
+        postIDs = []
+        postTypes = []
+        for activity in res['recentActivities']:
+            postIDs.append(activity["postID"])
+            postTypes.append(activity["postType"])
+
+        res["postDetail"] = getPosts(postIDs, postTypes)
+
     return res
         
 def getFollowingActivities(uID, page):
@@ -166,6 +184,16 @@ def getFollowingActivities(uID, page):
         followingUIDs.append(relation.uidfollowing)
 
     res = getUserActivities(followingUIDs, pageOffset = page, showActionType = (1<<0 | 1<<1))
+
+    # get post detail
+    postIDs = []
+    postTypes = []
+    for activity in res['recentActivities']:
+        postIDs.append(activity["postID"])
+        postTypes.append(activity["postType"])
+
+    res["postDetail"] = getPosts(postIDs, postTypes)
+    return res
     return res
 
 
@@ -193,24 +221,52 @@ def getFollows(uID, pageOffset, following, showDetail, numOfUsers = 20):
 
 # reinventing the wheel here. If displayQuestionAnswers can be separated into a function for returning http response and the other function for returning gathered data would be helpful
 # this is helper function, thus assuming the len of postIDs and postTypes are the same and they are valid values
+# getPosts
+# params: postIDs, a list of post ID (each post can be either question or answer)
+#         postTypes, a list of post type (0: question; 1: answer)
+# return: res, a list of postDetail dict
+#             keys of postDetail are: 'postID', 'userID', 'title', 'body', 'upVotes', 'downVotes', 'creationDate'
+#                 Notice that 'title' of an answer will be the title of its parent (question)
 def getPosts(postIDs, postTypes):
-    res = []
+    # assign to postTypes just for place holding
+    res = postTypes
+    
+    answerList = []
+    questionList = []
+
+    # filter out answers and questions because for each answers, we would also need to get its parent
+    # Thus we will get all answers first, and append their parents' IDs to questionList to reduce number of query
     for i in range(len(postIDs)):
-        # the post is queston
-        post = None
         if postTypes[i] == 0:
-            post = StackQuora.Questions.objects.get(qid = postIDs[i])
+            questionList.append(postIDs[i])
         else:
-            post = StackQuora.Answers.objects.get(aid = postIDs[i])
+            answerList.append(postIDs[i])
 
-        postDetail = {'postID':postIDs[i], 'userID':post.owneruserid, 'body': post.body, 'upVotes':post.upvote, 'downVotes':post.downvote, 'creationDate': post.creationdate.strftime(TIME_FORMAT)}
+    answers = StackQuora.Answers.objects.filter(aid__in = answerList)
+    for answer in answers:
+        questionList.append(answer.parentid)
 
+    questions = StackQuora.Questions.objects.filter(qid__in = questionList)
+
+    for i in range(len(postIDs)):
+        post = None
+        postTitle = ''
+        if res[i] == 0:
+            post = filter(lambda x: x.qid == postIDs[i], questions)[0]
+            postTitle = post.title
+        else:
+            post = filter(lambda x: x.aid == postIDs[i], answers)[0]
+            postTitle = (filter(lambda x: x.qid == post.parentid, questions)[0]).title
+
+        res[i] = {'postID':postIDs[i], 'userID':post.owneruserid, 'title': postTitle, 'body': post.body, 'upVotes':post.upvote, 'downVotes':post.downvote, 'creationDate': post.creationdate.strftime(TIME_FORMAT)}
+
+    users = StackQuora.Users.objects.filter(uid__in = [post['userID'] for post in res])
+    for postDetail in res:
         # user related information 
-        user = StackQuora.Users.objects.get(uid = post.owneruserid)
+        user = (filter(lambda x: x.uid == postDetail['userID'], users))[0]
         postDetail['author'] = user.username
         postDetail['reputation'] = user.reputation
 
-        res.append(postDetail)
     return res
 
 def getCertainActivities(userID, postType, actionType, page):
@@ -275,8 +331,6 @@ def updateVoteStatus(postID, postType, userID, voteStatus):
         # activity = StackQuora.Activityhistory.objects.create(uid = userID, actionid = postID, 
         #   actiontype = newactiontype, time = datetime.datetime.utcnow())
         
-        stdlogger.info("enter loop if statement A")
-
         uid=userID
         actionid = postID
         actiontype = newactiontype
@@ -305,10 +359,14 @@ def updateVoteStatus(postID, postType, userID, voteStatus):
                 uid = userID
                 actionid = postID
                 cursor = connection.cursor()
+
+                # incase the user reset its own question 
+                # which is highly unlikely, but it can happen.
                 query = '''DELETE FROM ActivityHistory 
                            WHERE uID = %s and actionID = %s
+                           and actionType != %s and actionType !=%s 
                         '''
-                cursor.execute(query,[uid,actionid])
+                cursor.execute(query,[uid,actionid,1,0])
             else:
                 cursor = connection.cursor()
                 query = '''UPDATE ActivityHistory 
@@ -431,7 +489,6 @@ def displayQuestionAnswers(qaID, is_answ):
 def deletePost(ID, is_answ):
     # if deleting a question, all other things has to be deleted
     if not is_answ:
-        stdlogger.info("is question")
         has_answer = True
         has_tag = True
         try:
@@ -450,6 +507,12 @@ def deletePost(ID, is_answ):
             has_tag = False
 
         if has_answer:
+            # delete all answer in activity history
+            for ele in answers:
+                cursor = connection.cursor()
+                query = '''DELETE FROM ActivityHistory 
+                        WHERE actionid = %s '''
+                cursor.execute(query,[ele.aid])
             answers.delete()
 
         if has_tag:
@@ -459,14 +522,18 @@ def deletePost(ID, is_answ):
 
     # else if we are deleting answer
     else:
-        stdlogger.info("is answer only")
         try:
             answer = StackQuora.Answers.objects.get(aid = ID)
         except ObjectDoesNotExist:
             return HttpResponseBadRequest("aID no longer exist in the database.") 
         answer.delete()
 
-    # @TODO add user activity history
+    # chagne user activity history
+    # delete every information related to the post
+    cursor = connection.cursor()
+    query = '''DELETE FROM ActivityHistory 
+            WHERE actionid = %s '''
+    cursor.execute(query,[ID])
     return HttpResponse("Successfully deleted!")
 
 
@@ -506,7 +573,13 @@ def postAnswer(body):
     except IntegrityError:
         return HttpResponseBadRequest("IntegrityError occured, check your pkey.")
 
-    # @TODO add user activity history
+    # add user activity history
+    # cursor used to execute raw query
+    cursor = connection.cursor()
+    query = '''INSERT INTO ActivityHistory (uID, actionID, actionType, time)
+                VALUES (%s,%s,%s,%s)
+            '''
+    cursor.execute(query,[owneruserID,aID,1,creationDate])
 
     return HttpResponse("Answer added.")
 
@@ -545,18 +618,25 @@ def postQuestion(body):
 
     # if pass, insert tags
     for tag in tags:
-        stdlogger.info(tag)
-        stdlogger.info(qID)
         try:
             new_tag = StackQuora.Tags.objects.create(tid = qID, tags = tag)
         except:
             return HttpResponseBadRequest("IntegrityError occured in tags, check your pkey.")
     
-    # @TODO add user activity history
+    # add user activity history
+    # cursor used to execute raw query
+    cursor = connection.cursor()
+    query = '''INSERT INTO ActivityHistory (uID, actionID, actionType, time)
+                VALUES (%s,%s,%s,%s)
+            '''
+    cursor.execute(query,[owneruserID,qID,0,creationDate])
 
     return HttpResponse("Question added.")
 
-
+# function update followers
+# input: userID, targetID, type
+# output: none
+# side-effect: follower-following pair inserted into database
 def updateFollowers(body):
     inJson = json.loads(body)
     userID = int(inJson['userID'])
@@ -600,6 +680,8 @@ def updateFollowers(body):
             return HttpResponse("Successfully add pair!")
     return HttpResponse("Pair already exists!")
 
+# function updates userName, 
+# we only have userName right now
 def updateUserInfo(body):
     inJson = json.loads(body)
     userID = int(inJson['userID'])
@@ -612,3 +694,12 @@ def updateUserInfo(body):
     res.username = userName
     res.save()
     return HttpResponse("Successfully update the name!")
+
+# little helper function that gets qID from aID
+# database is indexed on p-key so we are good.
+def getqIDfromaID(aID):
+    try:
+        res = StackQuora.Answers.objects.get(aid = aID)
+    except:
+        return HttpResponseBadRequest("Answer with aID passed in doesn't exists.")
+    return HttpResponse(res.parentid)
